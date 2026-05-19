@@ -174,96 +174,41 @@
 
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
 
-LAYOUT_WITH_LEGEND()
-
 title C4 Container Diagram — FIRSTstudent Smart Fuel Consumption Monitor
 
-' ===== PERSONAS =====
-Person(conductor, "Conductor", "Opera el bus. Recibe alertas y navegación via DriverHub Tablet.")
-Person(despachador, "Despachador", "Supervisa la flota del distrito en tiempo real.")
-Person(admin, "Administrador de Distrito", "Gestiona reportes de eficiencia y mantenimiento.")
-Person(padre, "Padre / Tutor", "Rastrea el bus de su hijo via First View App.")
-Person(analista, "Analista HALO", "Accede a KPIs globales de flota desde HALO Dashboard.")
-Person(tecnico, "Técnico de Mantenimiento", "Consulta alertas predictivas de vehículos.")
+Person(conductor, "Conductor", "Opera el bus")
+Person(despachador, "Despachador / Admin", "Supervisa la flota del distrito")
+Person(padre, "Padre / Tutor", "Rastrea el bus via First View App")
 
-' ===== EDGE: IN-BUS SYSTEM =====
-System_Boundary(edge, "In-Bus Edge System (por bus — ~44,500 unidades)") {
-
-    Container(fuelMonitor, "Smart Fuel Monitor Node", "ESP32 + YF-S201 + HC-SR04 / C++ Arduino", "Mide flujo de combustible y nivel del tanque. Detecta anomalías locales. Envía payload JSON al Gateway.")
-
-    Container(rfidNode, "RFID Reader Node", "Módulo RFID / Firmware embebido", "Registra asistencia de estudiantes al abordar y descender.")
-
-    Container(cameraNode, "HALO Driver Monitor", "Cámara IA / SDK propietario", "Monitorea comportamiento del conductor con visión por computadora.")
-
-    Container(gpsModule, "GPS Module", "Hardware GPS / NMEA", "Provee posición georreferenciada en tiempo real al Gateway.")
-
-    Container(gateway, "In-Bus Gateway Module", "Raspberry Pi 4 / Python + REST", "Concentra datos de todos los nodos. REST server local. Internet Gateway 4G hacia el exterior.")
-
-    Container(tablet, "DriverHub Tablet", "Android / iOS App", "Entrega navegación, alertas de combustible y recomendaciones de ruta al conductor.")
+System_Boundary(edge, "In-Bus Edge System") {
+    Container(fuelMonitor, "Smart Fuel Monitor Node", "ESP32 / C++ Arduino", "Mide flujo de combustible (YF-S201) y nivel de tanque (HC-SR04). Detecta anomalías y envía payload al Gateway.")
+    Container(gateway, "In-Bus Gateway Module", "Raspberry Pi 4 / Python", "Concentra datos de nodos del bus. Actúa como REST server local e Internet Gateway via 4G.")
+    Container(tablet, "DriverHub Tablet", "Android / iOS App", "Muestra alertas de combustible y navegación al conductor.")
 }
 
-' ===== FOG: DISTRICT STATION =====
-System_Boundary(fog, "School District Station — Fog Node") {
-
-    Container(aggregator, "Data Aggregator Service", "Python / MQTT Broker / REST API", "Recibe y normaliza telemetría de todos los buses del distrito.")
-
-    Container(districtDB, "District Database", "TimescaleDB / PostgreSQL", "Almacena series temporales de consumo, rutas, alertas y eventos de la flota.")
-
-    Container(aiEngine, "Predictive AI Engine", "Python / scikit-learn / TensorFlow", "Ejecuta modelos de mantenimiento predictivo y detección de anomalías de consumo.")
-
-    Container(routeService, "Route Recommendation Service", "Python / REST API", "Genera rutas eficientes combinando consumo histórico, tráfico y ocupación del bus.")
+System_Boundary(fog, "School District Station") {
+    Container(aggregator, "Data Aggregator + AI Engine", "Python / TimescaleDB", "Recibe telemetría de los buses, almacena históricos y ejecuta análisis predictivo de consumo y rutas.")
 }
 
-' ===== CLOUD: HALO PLATFORM =====
-System_Boundary(cloud, "HALO Cloud Platform — Global") {
-
-    Container(haloGateway, "HALO API Gateway", "REST / gRPC / API Management", "Punto de entrada único para sincronización de datos de todos los distritos.")
-
-    Container(haloCoreServices, "HALO Core Services", "Microservicios / Kubernetes", "Dispatch, routing global, training y gestión de flota a escala de Norteamérica.")
-
-    Container(dataLake, "Cloud Data Lake", "AWS S3 + Redshift / BigQuery", "KPIs globales, históricos de flota y datos para Business Intelligence.")
-
-    Container(firstViewApp, "First View App", "iOS / Android App", "Permite a padres rastrear el bus en tiempo real y recibir alertas de servicio.")
-
-    Container(haloDashboard, "HALO Dashboard", "Web App / React", "KPIs, alertas y mapa de flota para despachadores, administradores y analistas.")
-
-    Container(notificationService, "Notification Service", "Push / SMS / Email", "Envía alertas críticas y notificaciones programadas a todos los perfiles de usuario.")
+System_Boundary(cloud, "HALO Cloud Platform") {
+    Container(haloCore, "HALO Core Services + API Gateway", "Microservicios / REST", "Gestión global de flota, dispatch, sincronización de datos y Business Intelligence.")
+    Container(firstView, "First View App + Dashboard", "iOS / Android / Web", "Seguimiento GPS en tiempo real para padres, despachadores y administradores.")
+    Container(notifications, "Notification Service", "Push / SMS / Email", "Envía alertas críticas a todos los usuarios.")
 }
 
-' ===== RELACIONES EDGE INTERNAS =====
-Rel(fuelMonitor, gateway, "FuelDataPayload JSON", "HTTP REST / WiFi local")
-Rel(rfidNode, gateway, "Eventos de asistencia", "HTTP REST / Serial")
-Rel(cameraNode, gateway, "Alertas de conductor", "HTTP REST / local")
-Rel(gpsModule, gateway, "Posición NMEA", "Serial / UART")
-Rel(gateway, tablet, "Navegación y alertas", "HTTP REST / WiFi local")
+Rel(fuelMonitor, gateway, "Envía FuelDataPayload JSON", "HTTP REST / WiFi local")
+Rel(gateway, tablet, "Envía alertas y navegación", "HTTP REST / WiFi local")
+Rel(gateway, aggregator, "Envía telemetría del bus", "HTTPS / 4G")
+Rel(aggregator, gateway, "Envía recomendación de ruta", "HTTPS / 4G")
+Rel(aggregator, haloCore, "Sincroniza datos del distrito", "HTTPS / Internet")
+Rel(haloCore, firstView, "Provee datos de flota y GPS", "REST / API")
+Rel(haloCore, notifications, "Dispara alertas", "Event Bus")
 
-' ===== RELACIONES EDGE → FOG =====
-Rel(gateway, aggregator, "Telemetría consolidada del bus", "HTTPS / 4G")
-
-' ===== RELACIONES FOG INTERNAS =====
-Rel(aggregator, districtDB, "Persiste telemetría y eventos", "SQL")
-Rel(districtDB, aiEngine, "Datos históricos para modelos", "SQL / API")
-Rel(aiEngine, routeService, "Consumo estimado por segmento", "REST interna")
-Rel(routeService, gateway, "Recomendación de ruta al bus", "HTTPS / 4G")
-
-' ===== RELACIONES FOG → CLOUD =====
-Rel(aggregator, haloGateway, "Sincronización de datos del distrito", "HTTPS / Internet")
-
-' ===== RELACIONES CLOUD INTERNAS =====
-Rel(haloGateway, haloCoreServices, "Operaciones de flota", "gRPC interno")
-Rel(haloCoreServices, dataLake, "KPIs y datos analíticos", "API / ETL")
-Rel(haloCoreServices, notificationService, "Disparo de alertas", "Event Bus")
-
-' ===== RELACIONES USUARIOS =====
-Rel(conductor, tablet, "Consulta navegación y recibe alertas", "Touch / Visual")
-Rel(despachador, haloDashboard, "Supervisa flota en tiempo real", "HTTPS / Browser")
-Rel(admin, haloDashboard, "Consulta reportes y eficiencia", "HTTPS / Browser")
-Rel(padre, firstViewApp, "Rastrea el bus de su hijo", "HTTPS / Mobile")
-Rel(analista, haloDashboard, "Analiza KPIs globales", "HTTPS / Browser")
-Rel(tecnico, haloDashboard, "Consulta alertas de mantenimiento", "HTTPS / Browser")
-Rel(notificationService, padre, "Alertas de servicio", "Push / SMS")
-Rel(notificationService, conductor, "Repostaje programado", "Push / App")
-Rel(notificationService, despachador, "Anomalías críticas", "Push / SMS / Email")
+Rel(conductor, tablet, "Recibe alertas y navegación", "")
+Rel(despachador, firstView, "Supervisa flota", "HTTPS / Browser")
+Rel(padre, firstView, "Rastrea el bus", "HTTPS / Mobile")
+Rel(notifications, conductor, "Alerta de combustible bajo", "Push")
+Rel(notifications, despachador, "Anomalías críticas", "Push / SMS")
 
 @enduml
 ```
